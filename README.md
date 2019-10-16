@@ -1,4 +1,4 @@
-# learn-deep-learning
+# deep-learning-toy-examples
 Deep Learning notes, learning resources and toy examples
 
 ### Reading materials
