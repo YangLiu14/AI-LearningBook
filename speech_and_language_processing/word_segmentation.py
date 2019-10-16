@@ -9,7 +9,6 @@ author: Yang Liu
 @modify:
 """
 
-
 def max_match(sentence, dictionary):
     """A simple algorithm for segmenting Chinese sentence.
 
@@ -33,6 +32,9 @@ def max_match(sentence, dictionary):
     remainder = sentence[1:]
     return [firstword] + max_match(remainder, dictionary)
 
+# ======================================
+# TODO: statistical sequence models trained via supervised machine learning on hand-segmented training sets
+# ======================================
 
 if __name__ == "__main__":
     # =======================================
@@ -43,6 +45,12 @@ if __name__ == "__main__":
     print("Input:  {}".format(zh_sentence))
     print("Output: {}".format(max_match(zh_sentence, zh_words)))
     # output: ['他', '特别', '喜欢', '北京烤鸭']
+
+    ## Short-coming: problem unknown words (words that not in the dictionary)
+    test_sentence = '他喜欢中国的街边小吃'
+    print("Input:  {}".format(test_sentence))
+    print("Output: {}".format(max_match(test_sentence, zh_words)))
+    # output: ['他', '喜欢', '中', '国', '的', '街', '边', '小', '吃']
 
     # max_match does not perform well on English sentence
     en_words = ['we', 'can', 'canon', 'only', 'on', 'see', 'ash', 'ort',
