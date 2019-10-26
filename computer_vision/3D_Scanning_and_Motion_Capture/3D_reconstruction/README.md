@@ -74,7 +74,8 @@ Once we have the world coordinates, we can also take the RGBD-colors directly an
 
 
 ## Result
-![reconstruct_snapshot](img/reconstruct_snapshot.png?raw=true "3D Reconstruction")
+![reconstruct_snapshot01](img/reconstruct_snapshot01.png?raw=true "3D Reconstruction")
+![reconstruct_snapshot02](img/reconstruct_snapshot02.png?raw=true "3D Reconstruction")
 
 
 
