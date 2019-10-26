@@ -38,7 +38,7 @@ The intrinsic matrix can be calculated by:
 ![reconstruct_snapshot](img/intrinsic_matrix.png) <!-- .element height="50%" width="50%" -->
 
 - Extrinsics:
-TODO
+http://ksimek.github.io/2012/08/22/extrinsic/
 
 - Projection from World to Pixel
 ![reconstruct_snapshot](img/word2pixel.png?raw=true "Projection from world to pixel") 
