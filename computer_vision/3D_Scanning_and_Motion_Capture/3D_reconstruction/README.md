@@ -32,9 +32,9 @@ make
 ### Pinhole model
 https://www.ics.uci.edu/~majumder/vispercep/cameracalib.pdf
 
-### Intrinsics and Extrinsic
+### Camera Intrinsics and Extrinsic
 - Intrinsics:
 
-<img src=\"img/reconstruct_snapshot.png\" style=\"width: 400px;\"/>
+![reconstruct_snapshot](img/reconstruct_snapshot.png?raw=true "Title")
 
 
