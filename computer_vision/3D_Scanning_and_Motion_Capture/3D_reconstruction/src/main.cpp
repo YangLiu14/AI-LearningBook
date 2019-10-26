@@ -32,9 +32,7 @@ bool WriteMesh(Vertex* vertices, unsigned int width, unsigned int height, const 
 {
 	float edgeThreshold = 0.01f; // 1cm
 
-	// TODO 2: use the OFF file format to save the vertices grid (http://www.geomview.org/docs/html/OFF.html)
-	// - have a look at the "off_sample.off" file to see how to store the vertices and triangles
-	// - for debugging we recommend to first only write out the vertices (set the number of faces to zero)
+	// use the OFF file format to save the vertices grid (http://www.geomview.org/docs/html/OFF.html)
 	// - for simplicity write every vertex to file, even if it is not valid (position.x() == MINF) (note that all vertices in the off file have to be valid, thus, if a point is not valid write out a dummy point like (0,0,0))
 	// - use a simple triangulation exploiting the grid structure (neighboring vertices build a triangle, two triangles per grid cell)
 	// - you can use an arbitrary triangulation of the cells, but make sure that the triangles are consistently oriented
@@ -103,11 +101,10 @@ bool WriteMesh(Vertex* vertices, unsigned int width, unsigned int height, const 
 	// outFile << "# numVertices numFaces numEdges" << std::endl;
 	outFile << nVertices << " " << nFaces << " 0" << std::endl;
 
-	// TODO: save vertices
+	// save vertices
 	// outFile << "# list of vertices" << std::endl;
 	// outFile << "# X Y Z R G B A" << std::endl;
 	for (int i=0; i < nVertices; i++) {
-	// for (int i=0; i < 10; i++) {
 		Vector4f pos = vertices[i].position;
 		Vector4uc color = vertices[i].color;
 		if ( pos == Vector4f(MINF, MINF, MINF, MINF) ) {
@@ -117,11 +114,10 @@ bool WriteMesh(Vertex* vertices, unsigned int width, unsigned int height, const 
 		        << int(color(0)) << " " << int(color(1)) << " " << int(color(2)) << " " << int(color(3)) << std::endl;
 	}
 
-	// TODO: save valid faces
+	// save valid faces
 	// outFile << "# list of faces" << std::endl;
 	// outFile << "# nVerticesPerFace idx0 idx1 idx2 ..." << std::endl;
 	for (int j=0; j < nFaces; j++) {
-	// for (int j=0; j < 10; j++) {	
 		outFile << 3 << " " << int(faces[j][0]) << " " << int(faces[j][1]) << " " 
 		        << int(faces[j][2]) << std::endl;
 	}
@@ -157,10 +153,6 @@ int main()
 		// color is stored as RGBX in row major (4 byte values per pixel, get dimensions via sensor.GetColorImageWidth() / GetColorImageHeight())
 		BYTE* colorMap = sensor.GetColorRGBX();
 
-		// std::cout << float(colorMap[0]) << std::endl;
-		// std::cout << float(colorMap[640*480*4 - 1]) << std::endl;
-		// std::cout << sensor.GetColorImageWidth() << ", " << sensor.GetColorImageHeight() << std::endl;
-
 		// get depth intrinsics
 		Matrix3f depthIntrinsics = sensor.GetDepthIntrinsics();
 		float fX = depthIntrinsics(0, 0);
@@ -174,7 +166,7 @@ int main()
 		Matrix4f trajectory = sensor.GetTrajectory();
 		Matrix4f trajectoryInv = sensor.GetTrajectory().inverse();
 
-		// TODO 1: back-projection
+		// Back-Projection
 		// write result to the vertices array below, keep pixel ordering!
 		// if the depth value at idx is invalid (MINF) write the following values to the vertices array
 		// vertices[idx].position = Vector4f(MINF, MINF, MINF, MINF);
@@ -195,16 +187,13 @@ int main()
 					vertices[u*depthImageWidth + v].color = Vector4uc(0,0,0,0);
 				}
 				else {
-					// from P_pixel to P_image
+                    
+					// from P_pixel -> P_image -> P_camera
 					float zI = pixelValue;
-					float xI = (u - cX) * zI / fX;
-					float yI = (v - cY) * zI / fY;
+                    float zC = zI
+					float xC = (u - cX) * zI / fX;
+					float yC = (v - cY) * zI / fY;
 					
-					// from P_image to P_camera
-					float zC = zI;
-					float xC = xI;
-					float yC = yI;
-
 					// from P_camera to P_world
 					Vector4f pCamera(xC, yC, zC, 1.0);
 					Vector4f pWorld = trajectoryInv * depthExtrinsicsInv * pCamera;
