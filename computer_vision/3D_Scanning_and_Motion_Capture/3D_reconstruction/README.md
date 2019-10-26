@@ -35,13 +35,13 @@ https://www.ics.uci.edu/~majumder/vispercep/cameracalib.pdf
 ### Camera Intrinsics and Extrinsic
 - Intrinsics:
 The intrinsic matrix can be calculated by:
-![reconstruct_snapshot](img/intrinsic_matrix.png?raw=true "Intrinsic Matrix ")
+![reconstruct_snapshot](img/intrinsic_matrix.png?raw=true "Intrinsic Matrix ") {:height="50%" width="50%"}
 
 - Extrinsics:
 TODO
 
 - Projection from World to Pixel
-![reconstruct_snapshot](img/word2pixel.png?raw=true "Projection from world to pixel")
+![reconstruct_snapshot](img/word2pixel.png?raw=true "Projection from world to pixel") 
 
 
 - Back Project from depth-map to world coordinates
