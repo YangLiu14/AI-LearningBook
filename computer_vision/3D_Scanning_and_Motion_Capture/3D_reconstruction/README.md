@@ -44,15 +44,15 @@ TODO
 ![reconstruct_snapshot](img/word2pixel.png?raw=true "Projection from world to pixel") 
 
 
-- Back Project from depth-map to world coordinates
+### Back Project from depth-map to world coordinates
 Use the the equations in the "world --> pixel" step, and reverse calculate from the P_pixel [x_p, y_p] (from depth camera) to world coordinates [x_w, y_w, z_w, 1].
 
 Once we have the world coordinates, we can also take the RGBD-colors directly and store it the same order as we store the world-coordinates.
 
-- Write Mesh File
+### Write Mesh File
     - [OFF file](http://www.geomview.org/docs/html/OFF.html) format, example:
     
-    ```
+```
    COEF
    # numVertices numFaces numEdges(not checks, simply set 0)
    4 2 0
@@ -69,7 +69,7 @@ Once we have the world coordinates, we can also take the RGBD-colors directly an
    # or allcounter-clockwise
    3 0 5 1
    3 5 6 1
-  ```
+```
  ![reconstruct_snapshot](img/mesh_structure.png?raw=true "mesh structure")
 
 
