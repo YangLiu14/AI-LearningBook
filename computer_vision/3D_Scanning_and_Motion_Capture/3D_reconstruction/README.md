@@ -35,7 +35,7 @@ https://www.ics.uci.edu/~majumder/vispercep/cameracalib.pdf
 ### Camera Intrinsics and Extrinsic
 - Intrinsics:
 The intrinsic matrix can be calculated by:
-![reconstruct_snapshot](img/intrinsic_matrix.png){:height="50%" width="50%"}
+![reconstruct_snapshot](img/intrinsic_matrix.png | width=100px)
 
 - Extrinsics:
 TODO
