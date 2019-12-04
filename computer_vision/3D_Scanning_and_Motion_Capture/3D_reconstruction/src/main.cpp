@@ -190,7 +190,7 @@ int main()
                     
 					// from P_pixel -> P_image -> P_camera
 					float zI = pixelValue;
-                    float zC = zI
+                    float zC = zI;
 					float xC = (u - cX) * zI / fX;
 					float yC = (v - cY) * zI / fY;
 					
