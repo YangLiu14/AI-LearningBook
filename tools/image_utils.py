@@ -8,7 +8,7 @@ import png as pypng  # pip install pypng
 import PIL.Image as Image
 
 
-def store_masks_as_png(masks, outdir: str):
+def store_masks_to_png(masks, outdir: str):
     """Combine a list of input masks to a single numpy array,
     and store as png file with conserved pixel values strictly consistend with
     the mask's annotation. (single pixel values can be e.g. 2033)
