@@ -2,10 +2,40 @@
 __author__ = "Yang Liu"
 __email__ = "lander14@outlook.com"
 
+import colorsys
 import numpy as np
 import os
 import png as pypng  # pip install pypng
 import PIL.Image as Image
+
+
+# ================================================
+# Apply mask to a single image
+# ================================================
+# from https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/visualize.py
+def apply_mask(image, mask, color, alpha=0.5):
+    """Apply the given mask to the image.
+    """
+    for c in range(3):
+        image[:, :, c] = np.where(mask == 1,
+                                  image[:, :, c] * (1 - alpha) + alpha * color[c],
+                                  image[:, :, c])
+    return image
+
+
+# adapted from https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/visualize.py
+def generate_colors():
+    """Generate random colors.
+    To get visually distinct colors, generate them in HSV space then convert to RGB.
+    """
+    N = 30
+    brightness = 0.7
+    hsv = [(i / N, 1, brightness) for i in range(N)]
+    colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
+    perm = [15, 13, 25, 12, 19, 8, 22, 24, 29, 17, 28, 20, 2, 27, 11, 26, 21, 4, 3, 18, 9, 5, 14, 1, 16, 0, 23, 7, 6,
+            10]
+    colors = [colors[idx] for idx in perm]
+    return colors
 
 
 def store_masks_to_png(masks, outdir: str):
