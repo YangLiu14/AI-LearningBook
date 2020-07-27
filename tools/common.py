@@ -22,3 +22,16 @@ def list_files_in_dir(root_dir: str, file_type=".jpg"):
         # =================================
 
 
+# Delete all txt file in the given folder
+def delete_files(target_dir: str, suffix='.txt'):
+    """
+    Delete existing files of certain format
+    """
+    if os.path.exists(target_dir):
+        all_files = os.listdir(target_dir)
+        if len(all_files):
+            print(target_dir, "is not empty, will delete existing txt files.")
+            input("Press Enter to confirm DELETE and continue ...")
+            for item in all_files:
+                if item.endswith(suffix):
+                    os.remove(os.path.join(target_dir, item))
