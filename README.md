@@ -1,5 +1,5 @@
-# deep-learning-toy-examples
-Deep Learning notes, learning resources and toy examples
+# DL-Toolbox
+Deep Learning tools, notes, learning resources and toy examples
 
 ### Reading materials
 
