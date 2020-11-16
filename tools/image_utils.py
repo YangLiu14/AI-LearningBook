@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import os
 import png as pypng  # pip install pypng
-import PIL.Image as Image
+# import PIL.Image as Image
 
 
 def image_stitching(image_paths, rows, cols, out_path):
@@ -28,13 +28,12 @@ def image_stitching(image_paths, rows, cols, out_path):
     #     img_np = np.array(img.getdata())
     #     img_list.append(img_np)
     img_list = [cv2.imread(filename) for filename in image_paths]
-
     # combine images vertically
     img_vert = list()
 
     while img_list:
-        curr_row = img_list[:3]
-        img_list = img_list[3:]
+        curr_row = img_list[:rows]
+        img_list = img_list[rows:]
         combined_img = np.hstack(curr_row)
         img_vert.append(combined_img)
     # combine images horizontally
@@ -101,12 +100,13 @@ def store_masks_to_png(masks, outdir: str):
 
 
 if __name__ == "__main__":
-    image_paths = ["COCOunknown_score.png", "COCOunknown_bg.png", "COCOunknown_(1-bg).png",
-                   "COCOneighbor_score.png", "COCOneighbor_bg.png", "COCOneighbor_(1-bg).png",
-                   "COCOknown_score.png", "COCOknown_bg.png", "COCOknown_(1-bg).png"]
-    root_dir = ""
+    image_paths = ["COCOunknownclasses_score.png", "COCOunknownclasses_bg_score.png", "COCOunknownclasses_(1-bg).png", "COCOunknownclasses_objectness.png", "COCOunknownclasses_bg+rpn.png", "COCOunknownclasses_bg*rpn.png",
+                   "COCOneighborclasses_score.png", "COCOneighborclasses_bg_score.png", "COCOneighborclasses_(1-bg).png", "COCOneighborclasses_objectness.png", "COCOneighborclasses_bg+rpn.png", "COCOneighborclasses_bg*rpn.png",
+                   "COCOknownclasses_score.png", "COCOknownclasses_bg_score.png", "COCOknownclasses_(1-bg).png", "COCOknownclasses_objectness.png", "COCOknownclasses_bg+rpn.png", "COCOknownclasses_bg*rpn.png"]
+    root_dir = "/Users/lander14/Desktop/MA_OpenMOT/plots/recall_eval/val_set/postNMS/"
+    # root_dir = "/Users/lander14/Desktop/MA_OpenMOT/plots/recall_eval/train_set/"
     for i in range(len(image_paths)):
         image_paths[i] = root_dir + image_paths[i]
 
     output_path = "combined.png"
-    image_stitching(image_paths, 3, 3, output_path)
+    image_stitching(image_paths, 6, 3, output_path)
