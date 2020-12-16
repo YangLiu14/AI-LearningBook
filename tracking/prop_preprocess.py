@@ -283,7 +283,7 @@ def process_all_sequences_unovost(input_dir: str, outdir: str, image_dir: str, d
                 processed.append(prop)
 
             # Store processed proposals per frame as new npz file
-            out_folder = os.path.join(outdir, video)
+            out_folder = os.path.join(outdir, datasrc, video)
             if not os.path.exists(out_folder):
                 os.makedirs(out_folder)
             frame_name = fpath.split('/')[-1].replace(frames_format, ".npz")
