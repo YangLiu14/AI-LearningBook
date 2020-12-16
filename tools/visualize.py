@@ -20,7 +20,7 @@ import pycocotools.mask as rletools
 
 from PIL import Image
 from multiprocessing import Pool
-from mots_common.io import load_sequences, load_seqmap
+from tools.common import load_sequences, load_seqmap
 from functools import partial
 from subprocess import call
 
