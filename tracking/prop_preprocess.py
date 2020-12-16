@@ -247,7 +247,7 @@ def process_all_sequences_unovost(input_dir: str, outdir: str, image_dir: str, d
                 if is_wrong:
                     logging.error("bbox from mask outside of regressed-bbox [x1,y1.x2,y2]")
                     logging.info(fpath)
-                    logging.info("frame id:", frame_id)
+                    logging.info("frame id:".format(frame_id))
                     logging.info("regressed-bbox: {}".format(bbox.tolist()))
                     logging.info("bbox from mask: {}".format(bbox_from_mask.tolist()))
                     logging.info("score: {}".format(prop["score"]))
