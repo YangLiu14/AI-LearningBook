@@ -26,13 +26,14 @@ from subprocess import call
 
 
 # adapted from https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/visualize.py
-def generate_colors():
+def generate_colors(N=30):
     """
-  Generate random colors.
-  To get visually distinct colors, generate them in HSV space then
-  convert to RGB.
-  """
-    N = 30
+    Generate random colors.
+    To get visually distinct colors, generate them in HSV space then convert to RGB.
+
+    Args:
+        N: how many colors to generate
+    """
     brightness = 0.7
     hsv = [(i / N, 1, brightness) for i in range(N)]
     colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
