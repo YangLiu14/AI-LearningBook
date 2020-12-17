@@ -258,11 +258,11 @@ def process_all_sequences_unovost(input_dir: str, outdir: str, image_dir: str, d
                     logging.info("smoothed bbox:  {}".format(bbox_from_smoothed))
 
                     prop["instance_mask"] = smoothed_rle
-                    bbox_from_mask = np.arary(bbox_from_smoothed)
+                    bbox_from_mask = np.array(bbox_from_smoothed)
 
                 # Log and Fix loose regressed-bbox
                 diff = np.abs(bbox - bbox_from_mask)
-                if (diff > 200).any():
+                if (diff > 50).any():
                     logging.debug("Loose regressed-bbox [x1,y1.x2,y2], bbox converted from mask will be used instead.")
                     logging.info(fpath)
                     logging.info("frame id:".format(frame_id))
