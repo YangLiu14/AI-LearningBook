@@ -229,7 +229,6 @@ def process_all_sequences_unovost(input_dir: str, outdir: str, image_dir: str, d
                 x, y, w, h = toBbox(prop["instance_mask"])
                 # Convert [x,y,w,h] to [x1,y1,x2,y2]
                 bbox_from_mask = np.array([x, y, x+w, y+h])
-                diff = np.abs(bbox - bbox_from_mask)
 
                 is_wrong = False
                 # The mask is clearly wrong, if its box is outside of regressed-bbox
@@ -259,8 +258,10 @@ def process_all_sequences_unovost(input_dir: str, outdir: str, image_dir: str, d
                     logging.info("smoothed bbox:  {}".format(bbox_from_smoothed))
 
                     prop["instance_mask"] = smoothed_rle
+                    bbox_from_mask = bbox_from_smoothed
 
                 # Log and Fix loose regressed-bbox
+                diff = np.abs(bbox - bbox_from_mask)
                 if (diff > 200).any():
                     logging.debug("Loose regressed-bbox [x1,y1.x2,y2], bbox converted from mask will be used instead.")
                     logging.info(fpath)
