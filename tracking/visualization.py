@@ -281,7 +281,7 @@ def main():
 
         tracks_folder = args.tracks_folder + '/_' + args.phase + '/' + curr_data_src
         img_folder = args.img_folder + '/' + curr_data_src
-        output_folder = args.tracks_folder + "/viz_" + args.phase + '/' + curr_data_src
+        output_folder = args.tracks_folder + "/viz_" + args.phase + str(args.topN_proposals) + '/' + curr_data_src
         topN_proposals = args.topN_proposals
         print("For each frame, display top {} proposals".format(topN_proposals))
 
@@ -293,6 +293,7 @@ def main():
                                 for c in content if c.split('/')[0] == curr_data_src]
         else:
             seqmap_filenames = sorted(glob.glob(tracks_folder + '/*' + '.txt'))
+            seqmap_filenames = seqmap_filenames[:10]
 
         # Image path in all sequences
         all_frames = dict()  # {seq_name: List[frame_paths]}

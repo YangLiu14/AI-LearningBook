@@ -6,7 +6,7 @@ python tracking/prop_preprocess.py --input_dir /storage/slurm/liuyang/TAO_eval/T
                           --datasrc ArgoVerse
 
 python tracking/visualization.py --tracks_folder /storage/slurm/liuyang/Tracking/SORT_results/ \
-      --img_folder /storage/slurm/liuyang/data/TAO_VAL/val/ \
+      --img_folder /storage/slurm/liuyang/data/TAO/TAO_VAL/val/ \
       --track_format mot \
       --phase objectness \
       --topN_proposals 1000 \
