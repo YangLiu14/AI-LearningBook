@@ -265,6 +265,7 @@ def main():
     parser.add_argument("--img_folder", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/frames/val/")
     parser.add_argument("--datasrc", type=str, default='ArgoVerse')
     parser.add_argument("--phase", default="objectness", help="objectness, score or one_minus_bg_score", type=str)
+    parser.add_argument("--tao_subset", action="store_true", help="objectness, score or one_minus_bg_score", type=str)
     parser.add_argument("--topN_proposals", default="30",
                         help="for each frame, only display top N proposals (according to their scores)", type=int)
     parser.add_argument("--track_format", help="The file format of the tracking result", type=str, default='mot')
@@ -277,19 +278,21 @@ def main():
         """
         curr_data_src = args.datasrc
 
-        with open('../datasets/tao/tao_val_subset.txt', 'r') as f:
-            content = f.readlines()
-        content = [c.strip() for c in content]
 
         tracks_folder = args.tracks_folder + '/_' + args.phase + '/' + curr_data_src
         img_folder = args.img_folder + '/' + curr_data_src
         output_folder = args.tracks_folder + "/viz_" + args.phase + '/' + curr_data_src
         topN_proposals = args.topN_proposals
         print("For each frame, display top {} proposals".format(topN_proposals))
-        # seqmap_filenames = sorted(glob.glob(tracks_folder + '/*' + '.txt'))
-        seqmap_filenames = [os.path.join(args.tracks_folder, '_' + args.phase, curr_data_src, c.split('/')[-1] + '.txt')
-                            for c in content if c.split('/')[0] == curr_data_src]
-        seqmap_filenames = seqmap_filenames[:1]  # TODO: delete
+
+        if args.tao_subset:
+            with open('../datasets/tao/tao_val_subset.txt', 'r') as f:
+                content = f.readlines()
+            content = [c.strip() for c in content]
+            seqmap_filenames = [os.path.join(args.tracks_folder, '_' + args.phase, curr_data_src, c.split('/')[-1] + '.txt')
+                                for c in content if c.split('/')[0] == curr_data_src]
+        else:
+            seqmap_filenames = sorted(glob.glob(tracks_folder + '/*' + '.txt'))
 
         # Image path in all sequences
         all_frames = dict()  # {seq_name: List[frame_paths]}
