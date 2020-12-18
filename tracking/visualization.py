@@ -16,30 +16,17 @@ from multiprocessing import Pool
 from functools import partial
 from subprocess import call
 
+from tools.visualize import generate_colors
+from tools.video_utils import frames2video
+
 BASE_DIR = "/home/kloping/OpenSet_MOT/"
 class SegmentedObject:
-    def __init__(self, bbox, mask, class_id, track_id):
+    def __init__(self, bbox, mask, score, class_id, track_id):
         self.bbox = bbox
         self.mask = mask
+        self.score = score
         self.class_id = class_id
         self.track_id = track_id
-
-
-# adapted from https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/visualize.py
-def generate_colors():
-    """
-  Generate random colors.
-  To get visually distinct colors, generate them in HSV space then
-  convert to RGB.
-  """
-    N = 30
-    brightness = 0.7
-    hsv = [(i / N, 1, brightness) for i in range(N)]
-    colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
-    perm = [15, 13, 25, 12, 19, 8, 22, 24, 29, 17, 28, 20, 2, 27, 11, 26, 21, 4, 3, 18, 9, 5, 14, 1, 16, 0, 23, 7, 6,
-            10]
-    colors = [colors[idx] for idx in perm]
-    return colors
 
 
 # from https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/visualize.py
@@ -80,6 +67,7 @@ def load_txt(path):
                 assert False, "Unknown object class " + fields[2]
 
             fields[12] = fields[12].strip()
+            score = float(fields[6])
             mask = {'size': [int(fields[10]), int(fields[11])], 'counts': fields[12].encode(encoding='UTF-8')}
             bbox = [float(fields[2]), float(fields[3]), float(fields[4]), float(fields[5])]  # [x, y, w, h]
             # if frame not in combined_mask_per_frame:
@@ -92,6 +80,7 @@ def load_txt(path):
             objects_per_frame[frame].append(SegmentedObject(
                 bbox,
                 mask,
+                score,
                 class_id,
                 int(fields[1])
             ))
@@ -102,10 +91,13 @@ def load_txt(path):
 def load_sequences(seq_paths):
     objects_per_frame_per_sequence = {}
     print("Loading Sequences")
-    for seq_path_txt in tqdm.tqdm(seq_paths[:5]):
-        seq = seq_path_txt.split("/")[-1][:-4]
+    for seq_path_txt in tqdm.tqdm(seq_paths):
+        seq = seq_path_txt.split("/")[-1].replace(".txt", "")
         if os.path.exists(seq_path_txt):
             objects_per_frame_per_sequence[seq] = load_txt(seq_path_txt)
+            # Sort proposals in each frame by score
+            for frame_id, props in objects_per_frame_per_sequence[seq].items():
+                props.sort(key=lambda p: p.score, reverse=True)
         else:
             assert False, "Can't find data in directory " + seq_path_txt
 
@@ -113,20 +105,21 @@ def load_sequences(seq_paths):
 
 
 def process_sequence(seq_fpaths, tracks_folder, img_folder, output_folder, max_frames, annot_frames_dict,
-                     draw_boxes=True, create_video=True):
+                     topN_proposals, draw_boxes=True, create_video=True):
     folder_name = tracks_folder.split("/")[-1]
     # print("Processing sequence", seq_name)
     os.makedirs(output_folder, exist_ok=True)
     tracks = load_sequences(seq_fpaths)
     for seq_fpath in seq_fpaths:
-        seq_id = seq_fpath.split('/')[-1][:-4]
+        seq_id = seq_fpath.split('/')[-1].replace(".txt", "")
         max_frames_seq = max_frames[seq_id]
         annot_frames = annot_frames_dict[seq_id]
-        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames, output_folder, draw_boxes, create_video)
+        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames, output_folder,
+                            topN_proposals, draw_boxes, create_video)
 
 
 def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, output_folder, max_frames, annot_frames_dict,
-                     draw_boxes=True, create_video=True):
+                     topN_proposals, draw_boxes=True, create_video=True):
     """
     Args:
         track_result_map: Dict { img_id: List[detections] }. tracking result
@@ -196,11 +189,12 @@ def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, ou
     for seq_id in annot_frames_dict.keys():
         annot_frames = annot_frames_dict[seq_id]
         max_frames_seq = len(annot_frames)
-        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames, output_folder, draw_boxes, create_video)
+        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames, output_folder,
+                            topN_proposals, draw_boxes, create_video)
 
 
-def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames, output_folder, draw_boxes=True, create_video=True):
-    colors = generate_colors()
+def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames, output_folder, topN_proposals, draw_boxes=True, create_video=True):
+    colors = generate_colors(min(60, topN_proposals))
     dpi = 100.0
     # frames_with_annotations = [frame for frame in tracks.keys() if len(tracks[frame]) > 0]
     # img_sizes = next(iter(tracks[frames_with_annotations[0]])).mask["size"]
@@ -219,7 +213,7 @@ def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames
         ax.set_axis_off()
 
         if t+1 in tracks[seq_id].keys():
-            for obj in tracks[seq_id][t+1]:
+            for obj in tracks[seq_id][t+1][:topN_proposals]:
                 color = colors[obj.track_id % len(colors)]
                 if obj.class_id == 1:
                     category_name = "obj"
@@ -248,10 +242,12 @@ def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames
         plt.close(fig)
 
     if create_video:
-        os.chdir(output_folder + "/" + seq_id)
-        call(["ffmpeg", "-framerate", "10", "-y", "-i", "%06d.jpg", "-c:v", "libx264", "-profile:v", "high", "-crf",
-              "20",
-              "-pix_fmt", "yuv420p", "-vf", "pad=\'width=ceil(iw/2)*2:height=ceil(ih/2)*2\'", "output.mp4"])
+        frames2video(pathIn=output_folder + "/" + seq_id , pathOut=output_folder + "/" + seq_id + ".mp4", fps=10)
+
+        # os.chdir(output_folder + "/" + seq_id)
+        # call(["ffmpeg", "-framerate", "10", "-y", "-i", "%06d.jpg", "-c:v", "libx264", "-profile:v", "high", "-crf",
+        #       "20",
+        #       "-pix_fmt", "yuv420p", "-vf", "pad=\'width=ceil(iw/2)*2:height=ceil(ih/2)*2\'", "output.mp4"])
 
 
 def main():
@@ -265,6 +261,12 @@ def main():
     # seqmap_filename = sys.argv[4]
 
     parser = argparse.ArgumentParser(description='Visualization script for tracking result')
+    parser.add_argument("--tracks_folder", type=str, default="/home/kloping/OpenSet_MOT/Tracking/SORT_results/")
+    parser.add_argument("--img_folder", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/frames/val/")
+    parser.add_argument("--datasrc", type=str, default='ArgoVerse')
+    parser.add_argument("--phase", default="objectness", help="objectness, score or one_minus_bg_score", type=str)
+    parser.add_argument("--topN_proposals", default="30",
+                        help="for each frame, only display top N proposals (according to their scores)", type=int)
     parser.add_argument("--track_format", help="The file format of the tracking result", type=str, default='mot')
     args = parser.parse_args()
 
@@ -273,14 +275,21 @@ def main():
         The tracking result is stored in the mot-format.
             https://motchallenge.net/instructions/
         """
-        data_srcs = ["ArgoVerse", "BDD", "Charades", "LaSOT", "YFCC100M"]
-        curr_data_src = data_srcs[0]
-        tracks_folder = "/home/kloping/OpenSet_MOT/Tracking/SORT_results/_objectness/" + curr_data_src
-        img_folder = "/home/kloping/OpenSet_MOT/data/TAO/frames/val/" + curr_data_src
-        output_folder = "/home/kloping/OpenSet_MOT/Tracking/SORT_results/viz_objectness/" + curr_data_src
-        seqmap_filenames = sorted(glob.glob(tracks_folder + '/*' + '.txt'))
+        curr_data_src = args.datasrc
 
-        # seqmap, max_frames = load_seqmap(seqmap_filename)
+        with open('../datasets/tao/tao_val_subset.txt', 'r') as f:
+            content = f.readlines()
+        content = [c.strip() for c in content]
+
+        tracks_folder = args.tracks_folder + '/_' + args.phase + '/' + curr_data_src
+        img_folder = args.img_folder + '/' + curr_data_src
+        output_folder = args.tracks_folder + "/viz_" + args.phase + '/' + curr_data_src
+        topN_proposals = args.topN_proposals
+        print("For each frame, display top {} proposals".format(topN_proposals))
+        # seqmap_filenames = sorted(glob.glob(tracks_folder + '/*' + '.txt'))
+        seqmap_filenames = [os.path.join(args.tracks_folder, '_' + args.phase, curr_data_src, c.split('/')[-1] + '.txt')
+                            for c in content if c.split('/')[0] == curr_data_src]
+        seqmap_filenames = seqmap_filenames[:1]  # TODO: delete
 
         # Image path in all sequences
         all_frames = dict()  # {seq_name: List[frame_paths]}
@@ -322,7 +331,8 @@ def main():
         #     annot_frames[seq_name].append(s)
 
         process_sequence_part = partial(process_sequence, max_frames=max_frames, annot_frames_dict=all_frames,
-                                        tracks_folder=tracks_folder, img_folder=img_folder, output_folder=output_folder)
+                                        tracks_folder=tracks_folder, img_folder=img_folder,
+                                        output_folder=output_folder, topN_proposals=topN_proposals)
         process_sequence_part(seqmap_filenames)
 
 

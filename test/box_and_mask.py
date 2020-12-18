@@ -30,7 +30,6 @@ def mask2bbox(mask_rle):
     Convert mask (in RLE form) to bbox [x1,y1,x2,y2]
     """
     mask = decode(mask_rle)
-    np.save("test.npy", mask)
     pos = np.where(mask)
     xmin = np.min(pos[1])
     xmax = np.max(pos[1])
@@ -222,12 +221,13 @@ def process_all_sequences_unovost(input_dir: str, image_dir: str,
                 if math.ceil(bbox[3]) + 1 < int(bbox_from_mask[3]):
                     is_wrong = True
 
-                if (diff > 50).any() and is_wrong:
+                # if (diff > 50).any() and is_wrong:
+                if (diff > 50).any():
                     print(fpath)
                     print("frame id:", frame_id)
                     print("bbox: {}".format(bbox.tolist()))
                     print("mask: {}".format(bbox_from_mask.tolist()))
-                    print("score: {}".format(prop["score"]))
+                    print("score: {}".format(prop["objectness"]))
 
                 # else:
                     # Visualize the mask
@@ -249,7 +249,6 @@ def process_all_sequences_unovost(input_dir: str, image_dir: str,
                     vis_one_proposal(img_fpath, bbox_to_draw, mask)
 
 
-
 if __name__ == "__main__":
     # ===============================
     # History of args:
@@ -266,7 +265,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--input_dir', type=str, help="input directory of the tracking result")
     parser.add_argument('--image_dir', type=str, help="image directory of the dataset")
-    parser.add_argument('--datasrc', default="ArgoVerse", type=str,
+    parser.add_argument('--datasrc', default="BDD", type=str,
                         help="[ArgoVerse, BDD, Charades, LaSOT, YFCC100M]")
     parser.add_argument('--track_result_format', type=str, help='"mot" or "coco" or "unovost"')
 
