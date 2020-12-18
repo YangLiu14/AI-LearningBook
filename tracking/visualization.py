@@ -242,7 +242,7 @@ def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames
         plt.close(fig)
 
     if create_video:
-        frames2video(pathIn=output_folder + "/" + seq_id , pathOut=output_folder + "/" + seq_id + ".mp4", fps=10)
+        frames2video(pathIn=output_folder + "/" + seq_id + '/', pathOut=output_folder + "/" + seq_id + ".mp4", fps=10)
 
         # os.chdir(output_folder + "/" + seq_id)
         # call(["ffmpeg", "-framerate", "10", "-y", "-i", "%06d.jpg", "-c:v", "libx264", "-profile:v", "high", "-crf",
@@ -265,7 +265,7 @@ def main():
     parser.add_argument("--img_folder", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/frames/val/")
     parser.add_argument("--datasrc", type=str, default='ArgoVerse')
     parser.add_argument("--phase", default="objectness", help="objectness, score or one_minus_bg_score", type=str)
-    parser.add_argument("--tao_subset", action="store_true", help="objectness, score or one_minus_bg_score", type=str)
+    parser.add_argument("--tao_subset", action="store_true", help="if only process fixed tao-subsets")
     parser.add_argument("--topN_proposals", default="30",
                         help="for each frame, only display top N proposals (according to their scores)", type=int)
     parser.add_argument("--track_format", help="The file format of the tracking result", type=str, default='mot')
