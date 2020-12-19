@@ -265,8 +265,9 @@ def main():
     parser.add_argument("--img_folder", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/frames/val/")
     parser.add_argument("--datasrc", type=str, default='ArgoVerse')
     parser.add_argument("--phase", default="objectness", help="objectness, score or one_minus_bg_score", type=str)
+    parser.add_argument("--only_annotated", action="store_true")
     parser.add_argument("--tao_subset", action="store_true", help="if only process fixed tao-subsets")
-    parser.add_argument("--topN_proposals", default="30",
+    parser.add_argument("--topN_proposals", default="1000",
                         help="for each frame, only display top N proposals (according to their scores)", type=int)
     parser.add_argument("--track_format", help="The file format of the tracking result", type=str, default='mot')
     args = parser.parse_args()
@@ -303,8 +304,24 @@ def main():
             frames = sorted(glob.glob(fpath + '/*' + '.jpg'))
             all_frames[video] = frames
 
-        max_frames = dict()
+        if args.only_annotated:
+            annot_frames = dict()  # annotated frames for each sequence
+            # Get the annotated frames in the current sequence.
+            txt_fname = "../datasets/tao/val_annotated_{}.txt".format(curr_data_src)
+            with open(txt_fname) as f:
+                content = f.readlines()
+            content = ['/'.join(c.split('/')[1:]) for c in content]
+            annot_seq_paths = [os.path.join(img_folder, x.strip()) for x in content]
 
+            for s in annot_seq_paths:
+                seq_name = s.split('/')[-2]
+                if seq_name not in annot_frames.keys():
+                    annot_frames[seq_name] = []
+                annot_frames[seq_name].append(s)
+
+
+
+        max_frames = dict()
         for seq_fpath in seqmap_filenames:
             seq_name = seq_fpath.split('/')[-1][:-4]
             max_frames[seq_name] = len(all_frames[seq_name])
@@ -320,19 +337,7 @@ def main():
             #         num_frames = int(fields[0])
             # max_frames[seq_name] = num_frames
 
-        # annot_frames = dict()  # annotated frames for each sequence
-        # # Get the annotated frames in the current sequence.
-        # txt_fname = "../datasets/tao/val_annotated_{}.txt".format(curr_data_src)
-        # with open(txt_fname) as f:
-        #     content = f.readlines()
-        # content = ['/'.join(c.split('/')[1:]) for c in content]
-        # annot_seq_paths = [os.path.join(img_folder, x.strip()) for x in content]
-        #
-        # for s in annot_seq_paths:
-        #     seq_name = s.split('/')[-2]
-        #     if seq_name not in annot_frames.keys():
-        #         annot_frames[seq_name] = []
-        #     annot_frames[seq_name].append(s)
+
 
         process_sequence_part = partial(process_sequence, max_frames=max_frames, annot_frames_dict=all_frames,
                                         tracks_folder=tracks_folder, img_folder=img_folder,

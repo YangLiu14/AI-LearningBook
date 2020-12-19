@@ -9,5 +9,5 @@ python tracking/visualization.py --tracks_folder /storage/slurm/liuyang/Tracking
       --img_folder /storage/slurm/liuyang/data/TAO/TAO_VAL/val/ \
       --track_format mot \
       --phase objectness \
-      --topN_proposals 1000 \
+      --topN_proposals 30 \
       --datasrc ArgoVerse
