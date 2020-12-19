@@ -3,11 +3,13 @@ import colorsys
 import glob
 import json
 import os
+import shutil
 import sys
 import tqdm
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import pycocotools.mask as rletools
 
 from PIL import Image
@@ -19,7 +21,43 @@ from subprocess import call
 from tools.visualize import generate_colors
 from tools.video_utils import frames2video
 
-BASE_DIR = "/home/kloping/OpenSet_MOT/"
+# =======================================================
+# Global variables
+# =======================================================
+"""
+known_tao_ids: set of tao ids that can be mapped exactly to coco ids.
+neighbor_classes: tao classes that are similar to coco_classes.
+unknown_tao_ids: all_tao_ids that exclude known_tao_ids and neighbor_classes..
+"""
+
+IOU_THRESHOLD = 0.5
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = '/'.join(ROOT_DIR.split('/')[:-1])
+all_ids = set([i for i in range(1, 1231)])
+
+# Category IDs in TAO that are known (appeared in COCO)
+with open(ROOT_DIR + "/datasets/tao/coco_id2tao_id.json") as f:
+    coco_id2tao_id = json.load(f)
+known_tao_ids = set([v for k, v in coco_id2tao_id.items()])
+# Category IDs in TAO that are unknown (comparing to COCO)
+unknown_tao_ids = all_ids.difference(known_tao_ids)
+
+# neighbor classes
+with open(ROOT_DIR + "/datasets/tao/neighbor_classes.json") as f:
+    coco2neighbor_classes = json.load(f)
+# Gather tao_ids that can be categorized in the neighbor_classes
+neighbor_classes = set()
+for coco_id, neighbor_ids in coco2neighbor_classes.items():
+    neighbor_classes = neighbor_classes.union(set(neighbor_ids))
+
+# Exclude neighbor classes from unknown_tao_ids
+unknown_tao_ids = unknown_tao_ids.difference(neighbor_classes)
+
+
+# =======================================================
+# =======================================================
+
+
 class SegmentedObject:
     def __init__(self, bbox, mask, score, class_id, track_id):
         self.bbox = bbox
@@ -27,6 +65,33 @@ class SegmentedObject:
         self.score = score
         self.class_id = class_id
         self.track_id = track_id
+
+
+def box_IoU_xywh(boxA, boxB):
+    """input box: [x,y,w,h]"""
+    # convert [x,y,w,h] to [x1,y1,x2,y2]
+    xA, yA, wA, hA = boxA
+    boxA = [xA, yA, xA+wA, yA+hA]
+    xB, yB, wB, hB = boxB
+    boxB = [xB, yB, xB+wB, yB+hB]
+
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+    # compute the area of intersection rectangle
+    interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
+    boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
+    # compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the interesection area
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+    # return the intersection over union value
+    return iou
 
 
 # from https://github.com/matterport/Mask_RCNN/blob/master/mrcnn/visualize.py
@@ -104,8 +169,9 @@ def load_sequences(seq_paths):
     return objects_per_frame_per_sequence
 
 
-def process_sequence(seq_fpaths, tracks_folder, img_folder, output_folder, max_frames, annot_frames_dict,
-                     topN_proposals, draw_boxes=True, create_video=True):
+def process_sequence(seq_fpaths, tracks_folder, img_folder, output_folder, max_frames, all_frames_dict,
+                     annot_frames_dict,
+                     topN_proposals, gt_frame2anns, tao_id2name, only_annotated, draw_boxes=True, create_video=True):
     folder_name = tracks_folder.split("/")[-1]
     # print("Processing sequence", seq_name)
     os.makedirs(output_folder, exist_ok=True)
@@ -113,13 +179,23 @@ def process_sequence(seq_fpaths, tracks_folder, img_folder, output_folder, max_f
     for seq_fpath in seq_fpaths:
         seq_id = seq_fpath.split('/')[-1].replace(".txt", "")
         max_frames_seq = max_frames[seq_id]
+        all_frames = all_frames_dict[seq_id]
         annot_frames = annot_frames_dict[seq_id]
-        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames, output_folder,
-                            topN_proposals, draw_boxes, create_video)
+
+        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
+                            topN_proposals, gt_frame2anns, tao_id2name, 'unknown', only_annotated, draw_boxes,
+                            create_video)
+        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
+                            topN_proposals, gt_frame2anns, tao_id2name, 'known', only_annotated, draw_boxes,
+                            create_video)
+        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
+                            topN_proposals, gt_frame2anns, tao_id2name, 'neighbor', only_annotated, draw_boxes,
+                            create_video)
 
 
-def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, output_folder, max_frames, annot_frames_dict,
-                     topN_proposals, draw_boxes=True, create_video=True):
+def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, output_folder, max_frames,
+                          annot_frames_dict,
+                          topN_proposals, gt_frame2anns, tao_id2name, draw_boxes=True, create_video=True):
     """
     Args:
         track_result_map: Dict { img_id: List[detections] }. tracking result
@@ -177,8 +253,8 @@ def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, ou
             dets.sort(key=lambda k: k['score'])
             for det in dets:
                 tracks[video][frame_id].append(SegmentedObject(bbox=det["bbox"],
-                                                                   class_id=det["category_id"],
-                                                                   track_id=det["track_id"]))
+                                                               class_id=det["category_id"],
+                                                               track_id=det["track_id"]))
             # only keep detections with top 10 highest scores.
             tracks[video][frame_id] = tracks[video][frame_id][:10]
 
@@ -193,17 +269,31 @@ def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, ou
                             topN_proposals, draw_boxes, create_video)
 
 
-def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames, output_folder, topN_proposals, draw_boxes=True, create_video=True):
+def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
+                        topN_proposals, gt_frame2anns, tao_id2name, split, only_annotated=True, draw_boxes=True,
+                        create_video=True):
     colors = generate_colors(min(60, topN_proposals))
     dpi = 100.0
     # frames_with_annotations = [frame for frame in tracks.keys() if len(tracks[frame]) > 0]
     # img_sizes = next(iter(tracks[frames_with_annotations[0]])).mask["size"]
     frames_with_annotations = [frame.split('/')[-1] for frame in annot_frames]
+    all_frame_names = [frame.split('/')[-1] for frame in all_frames]
     # img_sizes = next(iter(tracks[seq_id])).bbox
+    if only_annotated:
+        frame_idx_with_annotations = list()
+        for frame_name in frames_with_annotations:
+            frame_idx = all_frame_names.index(frame_name)
+            frame_idx_with_annotations.append(frame_idx)
+        annot_frame_idx = 0
     for t in range(max_frames_seq):
-        print("Processing frame", annot_frames[t])
+        if only_annotated:
+            if t != frame_idx_with_annotations[annot_frame_idx]:
+                continue
+            else:
+                annot_frame_idx += 1
+        print("Processing frame", all_frames[t])
         # filename_t = img_folder + "/" + seq_id + "/" + frames_with_annotations[t]
-        filename_t = annot_frames[t]
+        filename_t = all_frames[t]
         img = np.array(Image.open(filename_t), dtype="float32") / 255
         img_sizes = img.shape
         fig = plt.figure()
@@ -212,42 +302,113 @@ def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, annot_frames
         ax = fig.subplots()
         ax.set_axis_off()
 
-        if t+1 in tracks[seq_id].keys():
-            for obj in tracks[seq_id][t+1][:topN_proposals]:
+        # GT bbox and masks
+        valid_cat_ids = list()
+        if split == 'known':
+            valid_cat_ids = known_tao_ids
+        elif split == "neighbor":
+            valid_cat_ids = neighbor_classes
+        elif split == "unknown":
+            valid_cat_ids = unknown_tao_ids
+        # Filter out gt-annotations that don't belong to current split
+        gt_anns_filtered = list()
+        k = '/'.join(filename_t.split('/')[-2:]).replace(".jpg", "")
+        for ann in gt_frame2anns[k]:
+            if ann["category_id"] in valid_cat_ids:
+                gt_anns_filtered.append(ann)
+
+        # Apply bbox and maks from Proposals to image
+        if t + 1 in tracks[seq_id].keys():
+            for obj in tracks[seq_id][t + 1][:topN_proposals]:
+                # Compare obj.bbox with every GT-bbox
+                # bbox from GT and proposal is in the form of [x,y,w,h]
+                matched_gt = None
+                max_IoU_score = 0
+                for ann in gt_anns_filtered:
+                    iou = box_IoU_xywh(obj.bbox, ann['bbox'])
+                    if iou >= IOU_THRESHOLD and iou > max_IoU_score:
+                        matched_gt = ann
+                        max_IoU_score = max(max_IoU_score, iou)
+                if not matched_gt:
+                    continue
+
                 color = colors[obj.track_id % len(colors)]
                 if obj.class_id == 1:
-                    category_name = "obj"
+                    category_name = ""
                 elif obj.class_id == 2:
                     category_name = "Pedestrian"
                 else:
                     category_name = "Ignore"
                     color = (0.7, 0.7, 0.7)
+
                 if obj.class_id == 1 or obj.class_id == 2:  # Don't show boxes or ids for ignore regions
                     x, y, w, h = obj.bbox
                     if draw_boxes:
-                        import matplotlib.patches as patches
                         rect = patches.Rectangle((x, y), w, h, linewidth=1,
                                                  edgecolor=color, facecolor='none', alpha=1.0)
                         ax.add_patch(rect)
                     category_name += ":" + str(obj.track_id)
-                    ax.annotate(category_name, (x + 0.5 * w, y + 0.5 * h), color=color, weight='bold',
-                                fontsize=7, ha='center', va='center', alpha=1.0)
+                    # ax.annotate(category_name, (x + 0.5 * w, y + 0.5 * h), color=color, weight='bold',
+                    #             fontsize=7, ha='center', va='center', alpha=1.0)
                 binary_mask = rletools.decode(obj.mask)
                 apply_mask(img, binary_mask, color)
+            # Draw GT bbox
+            color_gt = (1.0, 0.0, 0.0)
+            for ann in gt_anns_filtered:
+                x, y, w, h = ann['bbox']
+                rect = patches.Rectangle((x, y), w, h, linewidth=5, linestyle='-.',
+                                         edgecolor=color_gt, facecolor='none', alpha=0.5)
+                ax.add_patch(rect)
+                category_name = tao_id2name[ann["category_id"]]
+                ax.annotate(category_name, (x + 0.5 * w, y + 0.5 * h), color=color_gt, weight='bold',
+                            fontsize=7, ha='center', va='center', alpha=1.0)
 
         ax.imshow(img)
         if not os.path.exists(os.path.join(output_folder + "/" + seq_id)):
             os.makedirs(os.path.join(output_folder + "/" + seq_id))
-        fig.savefig(output_folder + "/" + seq_id + "/" + frames_with_annotations[t])
+        fig.savefig(output_folder + "/" + seq_id + "/" + all_frame_names[t])
         plt.close(fig)
 
     if create_video:
-        frames2video(pathIn=output_folder + "/" + seq_id + '/', pathOut=output_folder + "/" + seq_id + ".mp4", fps=10)
+        fps = 1 if only_annotated else 10
+        frames2video(pathIn=output_folder + "/" + seq_id + '/', pathOut=output_folder + '/' + split + "/" + seq_id + ".mp4", fps=fps)
+
+        # Delete the frames
+        shutil.rmtree(output_folder + "/" + seq_id)
 
         # os.chdir(output_folder + "/" + seq_id)
         # call(["ffmpeg", "-framerate", "10", "-y", "-i", "%06d.jpg", "-c:v", "libx264", "-profile:v", "high", "-crf",
         #       "20",
         #       "-pix_fmt", "yuv420p", "-vf", "pad=\'width=ceil(iw/2)*2:height=ceil(ih/2)*2\'", "output.mp4"])
+
+
+def load_and_preprocessing_gt(gt_path, datasrc):
+    with open(gt_path, 'r') as f:
+        gt = json.load(f)
+
+    # Get map: image_id --> frame_name
+    img_id2frame_name = dict()
+    for image in gt["images"]:
+        img_id2frame_name[image["id"]] = image["file_name"]
+
+    # Get map: frame_name --> annotations
+    frame_name2anns = dict()
+    for ann in gt["annotations"]:
+        frame_path = img_id2frame_name[ann["image_id"]]
+        curr_datasrc = frame_path.split('/')[1]
+        if curr_datasrc == datasrc:
+            video_name = frame_path.split('/')[-2]
+            frame_name = frame_path.split('/')[-1].replace(".jpg", "")
+            k = video_name + '/' + frame_name
+            if k not in frame_name2anns.keys():
+                frame_name2anns[k] = list()
+            frame_name2anns[k].append(ann)
+
+    tao_id2name = dict()
+    for cat in gt["categories"]:
+        tao_id2name[cat["id"]] = cat["name"]
+
+    return frame_name2anns, tao_id2name
 
 
 def main():
@@ -262,8 +423,9 @@ def main():
 
     parser = argparse.ArgumentParser(description='Visualization script for tracking result')
     parser.add_argument("--tracks_folder", type=str, default="/home/kloping/OpenSet_MOT/Tracking/SORT_results/")
+    parser.add_argument("--gt_path", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/annotations/validation.json")
     parser.add_argument("--img_folder", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/frames/val/")
-    parser.add_argument("--datasrc", type=str, default='ArgoVerse')
+    parser.add_argument("--datasrc", type=str, default='LaSOT')
     parser.add_argument("--phase", default="objectness", help="objectness, score or one_minus_bg_score", type=str)
     parser.add_argument("--only_annotated", action="store_true")
     parser.add_argument("--tao_subset", action="store_true", help="if only process fixed tao-subsets")
@@ -279,7 +441,6 @@ def main():
         """
         curr_data_src = args.datasrc
 
-
         tracks_folder = args.tracks_folder + '/_' + args.phase + '/' + curr_data_src
         img_folder = args.img_folder + '/' + curr_data_src
         output_folder = args.tracks_folder + "/viz_" + args.phase + str(args.topN_proposals) + '/' + curr_data_src
@@ -290,11 +451,14 @@ def main():
             with open('../datasets/tao/tao_val_subset.txt', 'r') as f:
                 content = f.readlines()
             content = [c.strip() for c in content]
-            seqmap_filenames = [os.path.join(args.tracks_folder, '_' + args.phase, curr_data_src, c.split('/')[-1] + '.txt')
-                                for c in content if c.split('/')[0] == curr_data_src]
+            seqmap_filenames = [
+                os.path.join(args.tracks_folder, '_' + args.phase, curr_data_src, c.split('/')[-1] + '.txt')
+                for c in content if c.split('/')[0] == curr_data_src]
         else:
             seqmap_filenames = sorted(glob.glob(tracks_folder + '/*' + '.txt'))
-            seqmap_filenames = seqmap_filenames[:10]
+
+        # Pre-processing GT
+        gt_frame_name2anns, tao_id2name = load_and_preprocessing_gt(args.gt_path, curr_data_src)
 
         # Image path in all sequences
         all_frames = dict()  # {seq_name: List[frame_paths]}
@@ -310,7 +474,7 @@ def main():
             txt_fname = "../datasets/tao/val_annotated_{}.txt".format(curr_data_src)
             with open(txt_fname) as f:
                 content = f.readlines()
-            content = ['/'.join(c.split('/')[1:]) for c in content]
+            content = ['/'.join(c.split('/')[2:]) for c in content]
             annot_seq_paths = [os.path.join(img_folder, x.strip()) for x in content]
 
             for s in annot_seq_paths:
@@ -319,28 +483,19 @@ def main():
                     annot_frames[seq_name] = []
                 annot_frames[seq_name].append(s)
 
-
-
         max_frames = dict()
+        for seq_name, frames in annot_frames.items():
+            max_frames[seq_name] = len(frames)
+
         for seq_fpath in seqmap_filenames:
             seq_name = seq_fpath.split('/')[-1][:-4]
             max_frames[seq_name] = len(all_frames[seq_name])
 
-            # Get the max number of frames of the current sequence
-            # num_frames = 0
-            # with open(seq_fpath, 'r') as f:
-            #     for line in f:
-            #         line = line.strip()
-            #         if not line:
-            #             continue
-            #         fields = line.split(",")
-            #         num_frames = int(fields[0])
-            # max_frames[seq_name] = num_frames
-
-
-
-        process_sequence_part = partial(process_sequence, max_frames=max_frames, annot_frames_dict=all_frames,
+        process_sequence_part = partial(process_sequence, max_frames=max_frames, all_frames_dict=all_frames,
+                                        annot_frames_dict=annot_frames,
                                         tracks_folder=tracks_folder, img_folder=img_folder,
+                                        gt_frame2anns=gt_frame_name2anns, tao_id2name=tao_id2name,
+                                        only_annotated=args.only_annotated,
                                         output_folder=output_folder, topN_proposals=topN_proposals)
         process_sequence_part(seqmap_filenames)
 
@@ -408,7 +563,8 @@ def main():
                     track_result_map[det["image_id"]] = list()
                 track_result_map[det["image_id"]].append(det)
 
-        process_sequence_part = partial(process_sequence_coco, max_frames=max_frames, datasrc=datasrc, annot_frames_dict=annot_frames,
+        process_sequence_part = partial(process_sequence_coco, max_frames=max_frames, datasrc=datasrc,
+                                        annot_frames_dict=annot_frames,
                                         img_id2name=img_id2name, img_folder=img_folder, output_folder=output_folder)
         process_sequence_part(track_result_map)
 
