@@ -471,7 +471,7 @@ def main():
         if args.only_annotated:
             annot_frames = dict()  # annotated frames for each sequence
             # Get the annotated frames in the current sequence.
-            txt_fname = "../datasets/tao/val_annotated_{}.txt".format(curr_data_src)
+            txt_fname = ROOT_DIR + "/datasets/tao/val_annotated_{}.txt".format(curr_data_src)
             with open(txt_fname) as f:
                 content = f.readlines()
             content = ['/'.join(c.split('/')[2:]) for c in content]
