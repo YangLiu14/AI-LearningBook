@@ -388,8 +388,10 @@ def load_and_preprocessing_gt(gt_path, datasrc):
 
     # Get map: image_id --> frame_name
     img_id2frame_name = dict()
+    frame_name2ima_id = dict()
     for image in gt["images"]:
         img_id2frame_name[image["id"]] = image["file_name"]
+        frame_name2ima_id[image["file_name"]] = image["id"]
 
     # Get map: frame_name --> annotations
     frame_name2anns = dict()
@@ -407,6 +409,16 @@ def load_and_preprocessing_gt(gt_path, datasrc):
     tao_id2name = dict()
     for cat in gt["categories"]:
         tao_id2name[cat["id"]] = cat["name"]
+
+    # There are soem frames although listed as annotated frames, but have no annotations
+    with open(ROOT_DIR + '/datasets/tao/val_annotated_{}.txt'.format(datasrc), 'r') as f:
+        content = f.readlines()
+    for frame in content:
+        frame = frame.strip()
+        frame_name = '/'.join(frame.split('/')[2:]).replace(".jpg", "")
+        if frame_name not in frame_name2anns.keys():
+            # print(datasrc + '/' + frame_name)
+            frame_name2anns[frame_name] = list()
 
     return frame_name2anns, tao_id2name
 
