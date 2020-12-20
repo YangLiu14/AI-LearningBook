@@ -181,17 +181,19 @@ def process_sequence(seq_fpaths, tracks_folder, img_folder, output_folder, max_f
         seq_id = seq_fpath.split('/')[-1].replace(".txt", "")
         max_frames_seq = max_frames[seq_id]
         all_frames = all_frames_dict[seq_id]
-        annot_frames = annot_frames_dict[seq_id]
+        if seq_id in annot_frames_dict.keys():
+            annot_frames = annot_frames_dict[seq_id]
 
-        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
-                            topN_proposals, gt_frame2anns, tao_id2name, 'unknown', only_annotated, draw_boxes,
-                            create_video)
-        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
-                            topN_proposals, gt_frame2anns, tao_id2name, 'known', only_annotated, draw_boxes,
-                            create_video)
-        visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
-                            topN_proposals, gt_frame2anns, tao_id2name, 'neighbor', only_annotated, draw_boxes,
-                            create_video)
+
+            visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
+                                topN_proposals, gt_frame2anns, tao_id2name, 'unknown', only_annotated, draw_boxes,
+                                create_video)
+            visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
+                                topN_proposals, gt_frame2anns, tao_id2name, 'known', only_annotated, draw_boxes,
+                                create_video)
+            visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
+                                topN_proposals, gt_frame2anns, tao_id2name, 'neighbor', only_annotated, draw_boxes,
+                                create_video)
 
 
 def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, output_folder, max_frames,
