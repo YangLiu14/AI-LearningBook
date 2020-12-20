@@ -113,7 +113,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='Visualization script for tracking result')
     parser.add_argument("--props_folder", type=str,
-                        default="/home/kloping/OpenSet_MOT/TAO_eval/TAO_VAL_Proposals/Panoptic_Cas_R101_NMSoff_forTracking/opt_flow_output/")
+                        default="/home/kloping/OpenSet_MOT/TAO_eval/TAO_VAL_Proposals/Panoptic_Cas_R101_NMSoff_forTracking/opt_flow_output002/")
     parser.add_argument("--img_folder", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/frames/val/")
     parser.add_argument("--datasrc", type=str, default='LaSOT')
     parser.add_argument("--phase", default="objectness", help="objectness, score or one_minus_bg_score", type=str)
