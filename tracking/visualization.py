@@ -175,8 +175,9 @@ def process_sequence(seq_fpaths, tracks_folder, img_folder, output_folder, max_f
     folder_name = tracks_folder.split("/")[-1]
     # print("Processing sequence", seq_name)
     os.makedirs(output_folder, exist_ok=True)
-    tracks = load_sequences(seq_fpaths)
+    # tracks = load_sequences(seq_fpaths)
     for seq_fpath in seq_fpaths:
+        tracks = load_sequences([seq_fpath])
         seq_id = seq_fpath.split('/')[-1].replace(".txt", "")
         max_frames_seq = max_frames[seq_id]
         all_frames = all_frames_dict[seq_id]
