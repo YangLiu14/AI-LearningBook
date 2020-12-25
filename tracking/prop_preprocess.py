@@ -292,9 +292,6 @@ def process_all_sequences_unovost(input_dir: str, outdir: str, image_dir: str, d
             np.savez_compressed(out_fpath, processed)
 
 
-
-
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -311,6 +308,6 @@ if __name__ == "__main__":
     if args.track_result_format == "mot":
         process_all_sequences_mot(args.input_dir, args.outdir, image_dir, args.datasrc)
     elif args.track_result_format == "unovost":
-        process_all_sequences_unovost(args.input_dir, args.outdir, image_dir, args.datasrc, ".json")
+        process_all_sequences_unovost(args.input_dir, args.outdir, image_dir, args.datasrc, ".npz")
 
 
