@@ -18,7 +18,7 @@ from multiprocessing import Pool
 from functools import partial
 from subprocess import call
 
-from tools.visualize import generate_colors
+from tools.visualize import generate_colors, colormap
 from tools.video_utils import frames2video
 
 # =======================================================
@@ -71,9 +71,9 @@ def box_IoU_xywh(boxA, boxB):
     """input box: [x,y,w,h]"""
     # convert [x,y,w,h] to [x1,y1,x2,y2]
     xA, yA, wA, hA = boxA
-    boxA = [xA, yA, xA+wA, yA+hA]
+    boxA = [xA, yA, xA + wA, yA + hA]
     xB, yB, wB, hB = boxB
-    boxB = [xB, yB, xB+wB, yB+hB]
+    boxB = [xB, yB, xB + wB, yB + hB]
 
     # determine the (x, y)-coordinates of the intersection rectangle
     xA = max(boxA[0], boxB[0])
@@ -184,7 +184,6 @@ def process_sequence(seq_fpaths, tracks_folder, img_folder, output_folder, max_f
         if seq_id in annot_frames_dict.keys():
             annot_frames = annot_frames_dict[seq_id]
 
-
             visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
                                 topN_proposals, gt_frame2anns, tao_id2name, 'unknown', only_annotated, draw_boxes,
                                 create_video)
@@ -194,6 +193,9 @@ def process_sequence(seq_fpaths, tracks_folder, img_folder, output_folder, max_f
             visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
                                 topN_proposals, gt_frame2anns, tao_id2name, 'neighbor', only_annotated, draw_boxes,
                                 create_video)
+        else:
+            visualize_all_sequences(seq_id, tracks, max_frames_seq, all_frames, output_folder, topN_proposals, draw_boxes=False,
+                                    create_video=True)
 
 
 def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, output_folder, max_frames,
@@ -272,10 +274,66 @@ def process_sequence_coco(track_result_map, img_id2name, datasrc, img_folder, ou
                             topN_proposals, draw_boxes, create_video)
 
 
+def visualize_all_sequences(seq_id, tracks, max_frames_seq, all_frames, output_folder, topN_proposals, draw_boxes=False,
+                            create_video=True):
+    colors = colormap()
+    dpi = 100.0
+    frames_with_annotations = [frame.split('/')[-1] for frame in all_frames]
+    all_frame_names = [frame.split('/')[-1] for frame in all_frames]
+    for t in range(max_frames_seq):
+        print("Processing frame", all_frames[t])
+        filename_t = all_frames[t]
+        img = np.array(Image.open(filename_t), dtype="float32") / 255
+        img_sizes = img.shape
+        fig = plt.figure()
+        fig.set_size_inches(img_sizes[1] / dpi, img_sizes[0] / dpi, forward=True)
+        fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=None, hspace=None)
+        ax = fig.subplots()
+        ax.set_axis_off()
+
+        if t + 1 in tracks[seq_id].keys():
+            for obj in tracks[seq_id][t + 1][:topN_proposals]:
+                color = colors[obj.track_id % len(colors)]
+                if obj.class_id == 1:
+                    category_name = ""
+                elif obj.class_id == 2:
+                    category_name = "Pedestrian"
+                else:
+                    category_name = "Ignore"
+                    color = (0.7, 0.7, 0.7)
+
+                if obj.class_id == 1 or obj.class_id == 2:  # Don't show boxes or ids for ignore regions
+                    x, y, w, h = rletools.toBbox(obj.mask)
+                    if draw_boxes:
+                        import matplotlib.patches as patches
+                        rect = patches.Rectangle((x, y), w, h, linewidth=1,
+                                                 edgecolor=color, facecolor='none', alpha=1.0)
+                        ax.add_patch(rect)
+                    category_name += ":" + str(obj.track_id)
+                    ax.annotate(category_name, (x + 0.5 * w, y + 0.5 * h), color=color, weight='bold',
+                                fontsize=7, ha='center', va='center', alpha=1.0)
+                binary_mask = rletools.decode(obj.mask)
+                apply_mask(img, binary_mask, color)
+
+        ax.imshow(img)
+        if not os.path.exists(os.path.join(output_folder + "/" + seq_id)):
+            os.makedirs(os.path.join(output_folder + "/" + seq_id))
+        fig.savefig(output_folder + "/" + seq_id + "/" + all_frame_names[t])
+        plt.close(fig)
+    if create_video:
+        fps = 10
+        frames2video(pathIn=output_folder + "/" + seq_id + '/',
+                     pathOut=output_folder + "/" + seq_id + ".mp4", fps=fps)
+
+        # Delete the frames
+        shutil.rmtree(output_folder + "/" + seq_id)
+
+
 def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, annot_frames, output_folder,
                         topN_proposals, gt_frame2anns, tao_id2name, split, only_annotated=True, draw_boxes=True,
                         create_video=True):
-    colors = generate_colors(min(60, topN_proposals))
+    # colors = generate_colors(min(60, topN_proposals))
+    colors = colormap()
     dpi = 100.0
     # frames_with_annotations = [frame for frame in tracks.keys() if len(tracks[frame]) > 0]
     # img_sizes = next(iter(tracks[frames_with_annotations[0]])).mask["size"]
@@ -374,7 +432,8 @@ def visualize_sequences(seq_id, tracks, max_frames_seq, img_folder, all_frames, 
 
     if create_video:
         fps = 1 if only_annotated else 10
-        frames2video(pathIn=output_folder + "/" + seq_id + '/', pathOut=output_folder + '/' + split + "/" + seq_id + ".mp4", fps=fps)
+        frames2video(pathIn=output_folder + "/" + seq_id + '/',
+                     pathOut=output_folder + '/' + split + "/" + seq_id + ".mp4", fps=fps)
 
         # Delete the frames
         shutil.rmtree(output_folder + "/" + seq_id)
@@ -437,7 +496,7 @@ def main():
     # seqmap_filename = sys.argv[4]
 
     parser = argparse.ArgumentParser(description='Visualization script for tracking result')
-    parser.add_argument("--tracks_folder", type=str, default="/home/kloping/OpenSet_MOT/Tracking/SORT_results/")
+    parser.add_argument("--tracks_folder", type=str, default="/home/kloping/OpenSet_MOT/Tracking/unovost_RAFT_noReID/")
     parser.add_argument("--gt_path", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/annotations/validation.json")
     parser.add_argument("--img_folder", type=str, default="/home/kloping/OpenSet_MOT/data/TAO/frames/val/")
     parser.add_argument("--datasrc", type=str, default='LaSOT')
@@ -483,8 +542,8 @@ def main():
             frames = sorted(glob.glob(fpath + '/*' + '.jpg'))
             all_frames[video] = frames
 
+        annot_frames = dict()  # annotated frames for each sequence
         if args.only_annotated:
-            annot_frames = dict()  # annotated frames for each sequence
             # Get the annotated frames in the current sequence.
             txt_fname = ROOT_DIR + "/datasets/tao/val_annotated_{}.txt".format(curr_data_src)
             with open(txt_fname) as f:
