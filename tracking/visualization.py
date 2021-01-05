@@ -310,8 +310,8 @@ def visualize_all_sequences(seq_id, tracks, max_frames_seq, all_frames, output_f
                                                  edgecolor=color, facecolor='none', alpha=1.0)
                         ax.add_patch(rect)
                     category_name += ":" + str(obj.track_id)
-                    ax.annotate(category_name, (x + 0.5 * w, y + 0.5 * h), color=color, weight='bold',
-                                fontsize=7, ha='center', va='center', alpha=1.0)
+                    # ax.annotate(category_name, (x + 0.5 * w, y + 0.5 * h), color=color, weight='bold',
+                    #             fontsize=7, ha='center', va='center', alpha=1.0)
                 binary_mask = rletools.decode(obj.mask)
                 apply_mask(img, binary_mask, color)
 
