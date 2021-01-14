@@ -208,7 +208,7 @@ def process_all_sequences_unovost(input_dir: str, outdir: str, image_dir: str, d
     root_dir = os.path.join(input_dir, datasrc)
     videos = [fn.split('/')[-1] for fn in sorted(glob.glob(os.path.join(root_dir, '*')))]
     for v_idx, video in enumerate(videos):
-        print("{}/{} Processing: {}".format(v_idx+1, len(videos), video))
+        print("{}/{} Processing: {}".format(v_idx, len(videos), video))
         video_dir = os.path.join(root_dir, video)
         frames = sorted(glob.glob(video_dir + '/*' + frames_format))
         for frame_id, fpath in enumerate(tqdm.tqdm(frames)):

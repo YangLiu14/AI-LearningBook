@@ -13,3 +13,13 @@ python tracking/visualization.py --tracks_folder /storage/slurm/liuyang/Tracking
       --topN_proposals 10000 \
       --only_annotated \
       --datasrc ArgoVerse
+
+
+
+python tracking/visualization.py --tracks_folder /storage/slurm/liuyang/Tracking/unovost_RAFT_noReID002/ \
+      --img_folder /storage/slurm/liuyang/data/TAO/TAO_VAL/val/ \
+      --gt_path /storage/slurm/liuyang/data/TAO/TAO_annotations/validation.json \
+      --track_format mot \
+      --phase objectness \
+      --topN_proposals 10000 \
+      --datasrc Charades
