@@ -8,6 +8,30 @@ from eval_utils import open_flow_png_file, warp_flow, bbox_iou
 from similarity_funcs import similarity_optical_flow
 
 
+"""
+known_tao_ids: set of tao ids that can be mapped exactly to coco ids.
+neighbor_classes: tao classes that are similar to coco_classes.
+unknown_tao_ids: all_tao_ids that exclude known_tao_ids and neighbor_classes..
+"""
+
+all_ids = set([i for i in range(1, 1231)])
+# Category IDs in TAO that are known (appeared in COCO)
+with open("../datasets/tao/coco_id2tao_id.json") as f:
+    coco_id2tao_id = json.load(f)
+known_tao_ids = set([v for k, v in coco_id2tao_id.items()])
+# Category IDs in TAO that are unknown (comparing to COCO)
+unknown_tao_ids = all_ids.difference(known_tao_ids)
+# neighbor classes
+with open("../datasets/tao/neighbor_classes.json") as f:
+    coco2neighbor_classes = json.load(f)
+# Gather tao_ids that can be categorized in the neighbor_classes
+neighbor_classes = set()
+for coco_id, neighbor_ids in coco2neighbor_classes.items():
+    neighbor_classes = neighbor_classes.union(set(neighbor_ids))
+# Exclude neighbor classes from unknown_tao_ids
+unknown_tao_ids = unknown_tao_ids.difference(neighbor_classes)
+
+
 def map_image_id2fname(annot_dict: str):
     """
     Map the image_id in annotation['images'] to its index.
@@ -39,9 +63,21 @@ def load_gt(gt_path: str, datasrc: str):
         if fname.split('/')[1] == datasrc:
             video_name = fname.split('/')[2]
             frame_name = fname.split('/')[-1].replace('.jpg', '').replace('.png', '')
+            # Determine whether the current gt_obj belongs to [known, neighbor, unknown]\
+            split = ''
+            if cat_id in known_tao_ids:
+                split = "known"
+            elif cat_id in neighbor_classes:
+                split = "neighbor"
+            elif cat_id in unknown_tao_ids:
+                split = "unknown"
+            else:
+                raise Exception("unrecognized category id")
+
             detection = {'bbox': ann['bbox'],   # [x,y,w,h]
                          'category_id': cat_id,
-                         'track_id': ann['track_id']}
+                         'track_id': ann['track_id'],
+                         "split": split}
             if video_name not in res.keys():
                 res[video_name] = dict()
             if frame_name not in res[video_name].keys():
@@ -105,6 +141,8 @@ def match_prop_to_gt(frame_path, gt_objects):
         if np.max(ious) > 0.5:
             chosen_idx = int(np.argmax(ious))
             proposals[chosen_idx]['gt_track_id'] = gt_obj['track_id']
+            proposals[chosen_idx]['split'] = gt_obj['split']
+
             picked_props.append(proposals[chosen_idx])
             valid_track_ids.append(gt_obj['track_id'])
 
@@ -141,8 +179,11 @@ def eval_similarity(datasrc: str, gt_path: str, prop_dir: str, opt_flow_dir: str
     # Only load gt and proposals relevant to current datasrc
     gt = load_gt(gt_path, datasrc)
 
-    num_correct = 0
-    num_evaled = 0
+    num_correct, num_evaled = 0, 0
+    num_correct_known, num_evaled_known = 0, 0
+    num_correct_neighbor, num_evaled_neighbor = 0, 0
+    num_correct_unknown, num_evaled_unknown = 0, 0
+
     for vidx, video in enumerate(sorted(gt.keys())):
         print("{}/{} Process Videos {}/{}".format(vidx, len(gt.keys()), datasrc, video))
         proposals_per_video = load_proposals(prop_dir, video)
@@ -164,14 +205,34 @@ def eval_similarity(datasrc: str, gt_path: str, prop_dir: str, opt_flow_dir: str
             # Similarity match
             # ================================================
             for propL in props_L:
-                match = similarity_optical_flow(propL, props_R, frameL, frameR,
+                match = similarity_optical_flow(gt[video], propL, props_R, frameL, frameR,
                                    os.path.join(image_dir, video),
                                    os.path.join(prop_dir, video),
                                    os.path.join(opt_flow_dir, video), use_frames_in_between=True)
+                if propL['split'] == "known":
+                    num_correct_known += match
+                    num_evaled_known += 1
+                elif propL['split'] == "neighbor":
+                    num_correct_neighbor += match
+                    num_evaled_neighbor += 1
+                elif propL['split'] == "unknown":
+                    num_correct_unknown += match
+                    num_evaled_unknown += 1
+
                 num_correct += match
                 num_evaled += 1
-        print("Current accuracy: {}/{}".format(num_correct, num_evaled))
-    print("Top 1 accuracy = {}/{} = {}".format(num_correct, num_evaled, num_correct/num_evaled) )
+        print("Current accuracy:            {}/{}".format(num_correct, num_evaled))
+        print("Current accuracy (known):    {}/{}".format(num_correct_known, num_evaled_known))
+        print("Current accuracy (neighbor): {}/{}".format(num_correct_neighbor, num_evaled_neighbor))
+        print("Current accuracy (unknown):  {}/{}".format(num_correct_unknown, num_evaled_unknown))
+
+    print("Top 1 accuracy =            {}/{} = {}".format(num_correct, num_evaled, num_correct/num_evaled))
+    print("Top 1 accuracy (known) =    {}/{} = {}".format(num_correct_known, num_evaled_known,
+                                                       num_correct_known/num_evaled_known))
+    print("Top 1 accuracy (neighbor) = {}/{} = {}".format(num_correct_neighbor, num_evaled_neighbor,
+                                                       num_correct_neighbor / num_evaled_neighbor))
+    print("Top 1 accuracy (unknown) =  {}/{} = {}".format(num_correct_unknown, num_evaled_unknown,
+                                                          num_correct_unknown / num_evaled_unknown))
 
 
 
