@@ -120,6 +120,8 @@ def find_objects_in_both_frames(gt, prop_dir:str, video: str, frameL: str, frame
     return objects {B, C}.
     Two objects are the same in two frames, when their `track_id` matches.
     """
+    if frameL not in gt[video].keys() or frameR not in gt[video].keys():
+        return []
     objects_L = gt[video][frameL]
     objects_R = gt[video][frameR]
 
@@ -151,6 +153,8 @@ def eval_similarity(datasrc: str, gt_path: str, prop_dir: str, opt_flow_dir: str
             frameL_path = os.path.join(prop_dir, video, frameL + '.npz')
             # gt_objects = gt[video][frameL]
             gt_objects = find_objects_in_both_frames(gt, prop_dir, video, frameL, frameR)
+            if not gt_objects:
+                continue
 
             props_L, _ = match_prop_to_gt(frameL_path, gt_objects)
             props_R = np.load(os.path.join(prop_dir, video, frameR + '.npz'),
