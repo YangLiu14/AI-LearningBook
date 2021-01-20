@@ -6,8 +6,11 @@ import tqdm
 
 from eval_utils import open_flow_png_file, warp_flow, bbox_iou
 from similarity_funcs import similarity_optical_flow
+from kf_tracker import similarity_kalman_filter
 
-
+# ============================================================================
+# Global Variable
+# ============================================================================
 """
 known_tao_ids: set of tao ids that can be mapped exactly to coco ids.
 neighbor_classes: tao classes that are similar to coco_classes.
@@ -30,6 +33,13 @@ for coco_id, neighbor_ids in coco2neighbor_classes.items():
     neighbor_classes = neighbor_classes.union(set(neighbor_ids))
 # Exclude neighbor classes from unknown_tao_ids
 unknown_tao_ids = unknown_tao_ids.difference(neighbor_classes)
+# --------------------------------------------------------------------------
+
+small_area = [0.001, 32 ^ 2]
+medium_area = [32 ^ 2, 96 ^ 2]
+large_area = 96 ^ 2
+# ===========================================================================
+# ===========================================================================
 
 
 def map_image_id2fname(annot_dict: str):
@@ -159,7 +169,7 @@ def find_objects_in_both_frames(gt, prop_dir:str, video: str, frameL: str, frame
     Two objects are the same in two frames, when their `track_id` matches.
     """
     if frameL not in gt[video].keys() or frameR not in gt[video].keys():
-        return []
+        return [], []
     objects_L = gt[video][frameL]
     objects_R = gt[video][frameR]
 
@@ -172,10 +182,10 @@ def find_objects_in_both_frames(gt, prop_dir:str, video: str, frameL: str, frame
         if obj['track_id'] in common_ids:
             common_objects.append(obj)
 
-    return common_objects
+    return common_objects, common_ids
 
 
-def eval_similarity(datasrc: str, gt_path: str, prop_dir: str, opt_flow_dir: str, image_dir: str):
+def eval_similarity(datasrc: str, gt_path: str, prop_dir: str, opt_flow_dir: str, image_dir: str, outdir: str):
     # Only load gt and proposals relevant to current datasrc
     gt = load_gt(gt_path, datasrc)
 
@@ -184,16 +194,31 @@ def eval_similarity(datasrc: str, gt_path: str, prop_dir: str, opt_flow_dir: str
     num_correct_neighbor, num_evaled_neighbor = 0, 0
     num_correct_unknown, num_evaled_unknown = 0, 0
 
-    for vidx, video in enumerate(sorted(gt.keys())):
-        print("{}/{} Process Videos {}/{}".format(vidx, len(gt.keys()), datasrc, video))
+    known_correct_big, known_evaled_big = 0, 0
+    known_correct_medium, known_evaled_medium = 0, 0
+    known_correct_small, known_evaled_small = 0, 0
+
+    neighbor_correct_big, neighbor_evaled_big = 0, 0
+    neighbor_correct_medium, neighbor_evaled_medium = 0, 0
+    neighbor_correct_small, neighbor_evaled_small = 0, 0
+
+    unknown_correct_big, unknown_evaled_big = 0, 0
+    unknown_correct_medium, unknown_evaled_medium = 0, 0
+    unknown_correct_small, unknown_evaled_small = 0, 0
+
+    videos = sorted(gt.keys())
+    for vidx, video in enumerate(videos):
+        similarity_record = dict()
+        print("{}/{} Process Videos {}/{}".format(vidx, len(videos), datasrc, video))
         proposals_per_video = load_proposals(prop_dir, video)
         annot_frames = sorted(list(proposals_per_video[video]))
         pairs = [(frame1, frame2) for frame1, frame2 in zip(annot_frames[:-1], annot_frames[1:])]
 
         for frameL, frameR in tqdm.tqdm(pairs):
+            similarity_record[frameL + '|' + frameR] = list()
             frameL_path = os.path.join(prop_dir, video, frameL + '.npz')
             # gt_objects = gt[video][frameL]
-            gt_objects = find_objects_in_both_frames(gt, prop_dir, video, frameL, frameR)
+            gt_objects, gt_track_ids = find_objects_in_both_frames(gt, prop_dir, video, frameL, frameR)
             if not gt_objects:
                 continue
 
@@ -205,34 +230,103 @@ def eval_similarity(datasrc: str, gt_path: str, prop_dir: str, opt_flow_dir: str
             # Similarity match
             # ================================================
             for propL in props_L:
-                match = similarity_optical_flow(gt[video], propL, props_R, frameL, frameR,
+                match, matched_idx, matched_gt = similarity_optical_flow(gt[video], gt_track_ids, propL, props_R, frameL, frameR,
                                    os.path.join(image_dir, video),
                                    os.path.join(prop_dir, video),
                                    os.path.join(opt_flow_dir, video), use_frames_in_between=True)
+                # match, matched_idx, matched_gt = similarity_kalman_filter(gt[video], gt_track_ids, propL, props_R, frameL, frameR,
+                #                    os.path.join(image_dir, video),
+                #                    os.path.join(prop_dir, video),
+                #                    use_frames_in_between=True)
+                if matched_idx:
+                    similarity_record[frameL + '|' + frameR].append(matched_idx)
+
                 if propL['split'] == "known":
                     num_correct_known += match
                     num_evaled_known += 1
+                    # Statistics of area
+                    x1, y1, x2, y2 = propL['bbox']
+                    w, h = x2 - x1, y2 - y1
+                    bbox_area = w * h
+                    if small_area[0] <= bbox_area < small_area[1]:
+                        known_correct_small += match
+                        known_evaled_small += 1
+                    elif medium_area[0] <= bbox_area < medium_area[1]:
+                        known_correct_medium += match
+                        known_evaled_medium += 1
+                    elif large_area <= bbox_area:
+                        known_correct_big += match
+                        known_evaled_big += 1
+
                 elif propL['split'] == "neighbor":
                     num_correct_neighbor += match
                     num_evaled_neighbor += 1
+                    # Statistics of area
+                    x1, y1, x2, y2 = propL['bbox']
+                    w, h = x2 - x1, y2 - y1
+                    bbox_area = w * h
+                    if small_area[0] <= bbox_area < small_area[1]:
+                        neighbor_correct_small += match
+                        neighbor_evaled_small += 1
+                    elif medium_area[0] <= bbox_area < medium_area[1]:
+                        neighbor_correct_medium += match
+                        neighbor_evaled_medium += 1
+                    elif large_area <= bbox_area:
+                        neighbor_correct_big += match
+                        neighbor_evaled_big += 1
+
                 elif propL['split'] == "unknown":
                     num_correct_unknown += match
                     num_evaled_unknown += 1
+                    # Statistics of area
+                    x1, y1, x2, y2 = propL['bbox']
+                    w, h = x2 - x1, y2 - y1
+                    bbox_area = w * h
+                    if small_area[0] <= bbox_area < small_area[1]:
+                        unknown_correct_small += match
+                        unknown_evaled_small += 1
+                    elif medium_area[0] <= bbox_area < medium_area[1]:
+                        unknown_correct_medium += match
+                        unknown_evaled_medium += 1
+                    elif large_area <= bbox_area:
+                        unknown_correct_big += match
+                        unknown_evaled_big += 1
 
                 num_correct += match
                 num_evaled += 1
+
         print("Current accuracy:            {}/{}".format(num_correct, num_evaled))
         print("Current accuracy (known):    {}/{}".format(num_correct_known, num_evaled_known))
         print("Current accuracy (neighbor): {}/{}".format(num_correct_neighbor, num_evaled_neighbor))
         print("Current accuracy (unknown):  {}/{}".format(num_correct_unknown, num_evaled_unknown))
+        print("--------------------------------------------------------------")
+        print("(known) small: {}/{}; medium: {}/{}; large: {}/{}".format(known_correct_small, known_evaled_small,
+            known_correct_medium, known_evaled_medium, known_correct_big, known_evaled_big))
+        print("(neigh) small: {}/{}; medium: {}/{}; large: {}/{}".format(neighbor_correct_small, neighbor_evaled_small,
+            neighbor_correct_medium, neighbor_evaled_medium, neighbor_correct_big, neighbor_evaled_big))
+        print("(unknw) small: {}/{}; medium: {}/{}; large: {}/{}".format(unknown_correct_small, unknown_evaled_small,
+            unknown_correct_medium, unknown_evaled_medium, unknown_correct_big, unknown_evaled_big))
 
+        with open(outdir + '/' + video + '.json', 'w') as fout:
+            json.dump(similarity_record, fout)
+
+    print("----------------------------------------------------------------")
+    print("-------------------- Final Results -----------------------------")
+    print("(known) small: {}/{}; medium: {}/{}; large: {}/{}".format(known_correct_small, known_evaled_small,
+        known_correct_medium, known_evaled_medium, known_correct_big, known_evaled_big))
+    print("(neigh) small: {}/{}; medium: {}/{}; large: {}/{}".format(neighbor_correct_small, neighbor_evaled_small,
+        neighbor_correct_medium, neighbor_evaled_medium, neighbor_correct_big, neighbor_evaled_big))
+    print("(unknw) small: {}/{}; medium: {}/{}; large: {}/{}".format(unknown_correct_small, unknown_evaled_small,
+        unknown_correct_medium, unknown_evaled_medium, unknown_correct_big, unknown_evaled_big))
+    print("-----------------------------------------------------------------")
     print("Top 1 accuracy =            {}/{} = {}".format(num_correct, num_evaled, num_correct/num_evaled))
-    print("Top 1 accuracy (known) =    {}/{} = {}".format(num_correct_known, num_evaled_known,
-                                                       num_correct_known/num_evaled_known))
-    print("Top 1 accuracy (neighbor) = {}/{} = {}".format(num_correct_neighbor, num_evaled_neighbor,
-                                                       num_correct_neighbor / num_evaled_neighbor))
-    print("Top 1 accuracy (unknown) =  {}/{} = {}".format(num_correct_unknown, num_evaled_unknown,
-                                                          num_correct_unknown / num_evaled_unknown))
+    print("Top 1 accuracy (known) =    {}/{}".format(num_correct_known, num_evaled_known))
+    print("Top 1 accuracy (neighbor) = {}/{}".format(num_correct_neighbor, num_evaled_neighbor))
+    print("Top 1 accuracy (unknown) =  {}/{}".format(num_correct_unknown, num_evaled_unknown))
+
+
+
+
 
 
 
@@ -244,5 +338,9 @@ if __name__ == "__main__":
                             "Panoptic_Cas_R101_NMSoff_forTracking_Embed/preprocessed/", datasrc)
     opt_flow_dir = os.path.join("/storage/slurm/liuyang/Optical_Flow/pwc_net/", datasrc)
     gt_path = "/storage/slurm/liuyang/data/TAO/TAO_annotations/validation.json"
+    outdir = os.path.join("/storage/slurm/liuyang/Evaluation/Proposal_Similarity/tmp/", datasrc)
 
-    eval_similarity(datasrc, gt_path, prop_dir, opt_flow_dir, image_dir)
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    eval_similarity(datasrc, gt_path, prop_dir, opt_flow_dir, image_dir, outdir)
