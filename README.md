@@ -1,9 +1,14 @@
-# DL-Toolbox
+# CV-Encyclopedia
 Deep Learning tools, notes, learning resources and toy examples
 
-### Reading materials
+## Reading materials
 
-#### Visualizing (filters of) CNN
+### Camera params, projection
+ - [Convert a quaternion to a Rotatin Matrix](https://automaticaddison.com/how-to-convert-a-quaternion-to-a-rotation-matrix/)
+ - [Homography based IPM](https://towardsdatascience.com/a-hands-on-application-of-homography-ipm-18d9e47c152f)
+
+
+### Visualizing (filters of) CNN
 - Stanford CS231n: [Visualizing what ConvNets learn](http://cs231n.github.io/understanding-cnn/)  (article)
 
 - [What Neural Networks See](https://experiments.withgoogle.com/what-neural-nets-see): Visualizing what different convFilters outputs with the input video. (Tool and explanation video)
