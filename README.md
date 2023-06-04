@@ -1,4 +1,4 @@
-# CV-Encyclopedia
+# AI-LearningBook
 Deep Learning tools, notes, learning resources and toy examples
 
 ## Reading materials
